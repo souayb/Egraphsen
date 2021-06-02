@@ -1,0 +1,4 @@
+90
+180
+pointing_8h
+horizontal

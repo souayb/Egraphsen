@@ -1,0 +1,6 @@
+__ignore__
+A-Seite
+B-Seite
+Damaged
+Low-Quality
+High-Quality
