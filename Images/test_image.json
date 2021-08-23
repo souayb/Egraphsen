@@ -279,6 +279,36 @@
       "shape_type": "polygon",
       "flags": {},
       "parent": "man_0"
+    },
+    {
+      "label": "aryballos",
+      "points": [
+        [
+          290.17073170731703,
+          268.9512195121951
+        ],
+        [
+          380.4146341463414,
+          312.8536585365853
+        ],
+        [
+          303.58536585365846,
+          584.8048780487804
+        ],
+        [
+          174.3170731707317,
+          516.5121951219512
+        ]
+      ],
+      "group_id": 0,
+      "context": null,
+      "state": null,
+      "person": null,
+      "orient": null,
+      "phrase": null,
+      "shape_type": "polygon",
+      "flags": {},
+      "parent": "man_0"
     }
   ],
   "imagePath": "test_image.jpg",

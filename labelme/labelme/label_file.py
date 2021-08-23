@@ -2,7 +2,7 @@ import base64
 import io
 import json
 import os.path as osp
-
+from collections import defaultdict
 import PIL.Image
 
 #import __version__
@@ -29,6 +29,7 @@ class LabelFile(object):
 
     def __init__(self, filename=None):
         self.shapes = []
+        self.parent_dict = defaultdict(list)
         self.imagePath = None
         self.imageData = None
         if filename is not None:
@@ -135,7 +136,11 @@ class LabelFile(object):
                 )
                 for s in data['shapes']
             ]
-
+            ### added souayb ###############
+            for d in data['shapes']:
+                if d.get('parent'):
+                    self.parent_dict[d.get('parent')].append((d.get('label'), d.get('group_id')))
+            ############# end ########################
             # Create group id dic
             self.group_ids = {}
             for s in shapes:

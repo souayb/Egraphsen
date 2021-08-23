@@ -152,10 +152,16 @@ class LabelListWidget(QtWidgets.QListView):
     def scrollToItem(self, item):
         self.scrollTo(self.model().indexFromItem(item))
 
-    def addItem(self, item):
+    def addItem(self, item, no_parent=False):
         if not isinstance(item, LabelListWidgetItem):
             raise TypeError("item must be LabelListWidgetItem")
-        self.model().setItem(self.model().rowCount(), 0, item)
+        ###### added souayb ################
+        if no_parent:
+            item.setBackground(QtGui.QColor('red'))
+            self.model().setItem(self.model().rowCount(), 0, item)
+        else :
+            self.model().setItem(self.model().rowCount(), 0, item)
+        ########### end ############################
         item.setSizeHint(self.itemDelegate().sizeHint(None, None))
 
     def removeItem(self, item):

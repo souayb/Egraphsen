@@ -989,7 +989,16 @@ class MainWindow(QtWidgets.QMainWindow):
         shape = item.shape()
         if shape is None:
             return
-
+        ######### END ###################################
+        if shape.parent:
+            found = False
+            for parent, value in self.labelFile.parent_dict.items():
+                if (shape.label, shape.group_id) in value:
+                    shape.parent = parent
+                    found = True
+                    break
+            if not found:
+                shape.parent = None
 
         # Load Hierarchy
         points=item.shape().points
@@ -1014,7 +1023,15 @@ class MainWindow(QtWidgets.QMainWindow):
             levels.append("__None__")
 
         self.labelDialog.updateLevels(levels)
-
+        
+        ###### added souayb ############
+        old_parent = shape.label+"_"+ str(shape.group_id)
+        old_children = None
+        
+        if old_parent in self.labelFile.parent_dict:
+            old_children = self.labelFile.parent_dict[old_parent]
+        
+        ################ end #######################
         text, flags, group_id, context, state, person, orient, phrase, levels = self.labelDialog.popUp(
             text=shape.label, flags=shape.flags, group_id=shape.group_id, context=shape.context, state=shape.state, person=shape.person, orient=shape.orient, phrase=shape.phrase, level=shape.parent
         )
@@ -1028,6 +1045,26 @@ class MainWindow(QtWidgets.QMainWindow):
                 ).format(text, self._config['validate_label'])
             )
             return
+
+
+        ########### added souayb ############
+        if shape.parent != levels :
+            if shape.parent in self.labelFile.parent_dict:
+                self.labelFile.parent_dict[shape.parent].remove((shape.label, shape.group_id))
+            self.labelFile.parent_dict[levels].append((text, group_id))
+
+        new_parent = text+"_"+str(group_id)
+        if old_children!=None and old_parent != new_parent:
+            for (child, id) in old_children:
+                for index, value in enumerate(self.labelFile.shapes):
+                    if child ==value['label'] and id==value['group_id']:
+                        self.labelFile.shapes[index]['parent']= text+"_"+str(group_id)
+                        
+            self.labelFile.parent_dict[new_parent] = self.labelFile.parent_dict[old_parent]
+            self.labelFile.parent_dict.pop(old_parent)
+
+        ############## end #############
+
         shape.label    = text
         shape.flags    = flags
         shape.group_id = group_id
@@ -1037,11 +1074,44 @@ class MainWindow(QtWidgets.QMainWindow):
         shape.orient   = orient
         shape.phrase   = phrase
         shape.parent   = levels
+        ####### REPLACE #############3
+        # if shape.group_id is None:
+        #     item.setText(shape.label)
+        # else:
+        #     item.setText('{} ({})'.format(shape.label, shape.group_id))
+        
 
+        rgb = self._get_rgb_by_label(shape.label)
+        if rgb is None:
+            return
+
+        r, g, b = rgb
         if shape.group_id is None:
-            item.setText(shape.label)
+            if shape.parent == ' ' or shape.parent == None:
+                item.setBackground(QtGui.QColor('red'))
+                item.setText(
+                    '{} <font color="#{:02x}{:02x}{:02x}">●</font>'
+                    .format(shape.label, r, g, b)
+                )
+                # item.setText(shape.label)
+            else :
+                item.setBackground(QtGui.QColor('None'))
+                item.setText(
+                    '{} <font color="#{:02x}{:02x}{:02x}">●</font>'
+                    .format(shape.label, r, g, b)
+                )
+                # item.setText(shape.label)
         else:
-            item.setText('{} ({})'.format(shape.label, shape.group_id))
+            if shape.parent == ' ' or shape.parent == None:
+                item.setBackground(QtGui.QColor('red'))
+                item.setText('{} ({}) <font color="#{:02x}{:02x}{:02x}">●</font>'
+                .format(shape.label, shape.group_id, r, g, b))
+            else :
+                item.setBackground(QtGui.QColor('None'))
+    
+                item.setText('{} ({}) <font color="#{:02x}{:02x}{:02x}">●</font>'
+                .format(shape.label, shape.group_id, r, g, b))
+
         self.setDirty()
 
         if not self.uniqLabelList.findItemsByLabel(shape.label):
@@ -1129,7 +1199,15 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             text = '{} ({})'.format(shape.label, shape.group_id)
         label_list_item = LabelListWidgetItem(text, shape)
-        self.labelList.addItem(label_list_item)
+
+        # self.labelList.addItem(label_list_item)  ### replaced by
+        #### added souayb #################
+        
+        if shape.parent:
+            self.labelList.addItem(label_list_item)
+        else :
+            self.labelList.addItem(label_list_item, no_parent=True)
+        ######## end #################
 
         if not self.uniqLabelList.findItemsByLabel(shape.label):
             item = self.uniqLabelList.createItemFromLabel(shape.label)
@@ -1985,6 +2063,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._config['keep_prev'] = not self._config['keep_prev']
 
     def deleteSelectedShape(self):
+        ##### added souayb ####
+        item = self.currentItem()
+        if item == None:
+            return True
+        shape = item.shape()
+        ######### end ############
         yes, no = QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No
         msg = self.tr(
             'You are about to permanently delete {} polygons, '
@@ -1995,6 +2079,21 @@ class MainWindow(QtWidgets.QMainWindow):
                 yes | no):
             self.remLabels(self.canvas.deleteSelected())
             self.setDirty()
+            ##### added souayb ####
+            old_parent = shape.label+"_"+ str(shape.group_id)
+            if old_parent in self.labelFile.parent_dict:
+                children = self.labelFile.parent_dict[old_parent]
+                for index, elem in enumerate(self.labelFile.shapes):
+                    if (elem['label'], elem['group_id']) in children:
+
+                        for row in range(self.labelList.model().rowCount()):
+                            iteme = self.labelList.model().item(row, 0)
+                            if (iteme.shape().label,iteme.shape().group_id)  == (elem['label'], elem['group_id']):
+                                iteme.setBackground(QtGui.QColor('red'))
+                        self.labelFile.shapes[index]['parent'] = None
+                        children.remove((elem['label'], elem['group_id']))
+                self.labelFile.parent_dict.pop(old_parent)
+            ############# end ##############
             if self.noShapes():
                 for action in self.actions.onShapesPresent:
                     action.setEnabled(False)
