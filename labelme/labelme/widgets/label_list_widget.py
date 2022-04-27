@@ -14,7 +14,7 @@ class HTMLDelegate(QtWidgets.QStyledItemDelegate):
 
     def paint(self, painter, option, index):
         painter.save()
-
+        print('paining')
         options = QtWidgets.QStyleOptionViewItem(option)
 
         self.initStyleOption(options, index)

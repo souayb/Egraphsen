@@ -50,3 +50,14 @@ buttock
 bag
 handle
 ornament
+inscription
+goddess
+wreath
+leaf
+sceptre
+breast
+nipple
+bracelet
+band
+mirror
+human

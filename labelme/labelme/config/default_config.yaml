@@ -108,6 +108,9 @@ shortcuts:
   fit_window: Ctrl+F
   fit_width: Ctrl+Shift+F
 
+####################################### Souayb 
+  Apply_cut: Ctrl+K
+
   create_polygon: Ctrl+N
   create_rectangle: Ctrl+R
   create_circle: null

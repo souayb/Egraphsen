@@ -271,6 +271,18 @@ class MainWindow(QtWidgets.QMainWindow):
         # Actions
         action = functools.partial(utils.newAction, self)
         shortcuts = self._config['shortcuts']
+        
+        ############################################################ Souayb ##################################################
+        # (parent, text, slot=None, shortcut=None, icon=None,
+        #       tip=None, checkable=False, enabled=True, checked=False):
+        grabcut = action(
+            text = self.tr('&Apply_cut'),
+            slot=lambda: self.toggleDrawMode(False, createMode='grab'),
+            shortcut= shortcuts['Apply_cut'],
+            icon='Grab',
+            tip = self.tr('Apply grab cut on the image'),
+            enabled=False)
+
         quit = action(self.tr('&Quit'), self.close, shortcuts['quit'], 'quit',
                       self.tr('Quit application'))
         open_ = action(self.tr('&Open'),
@@ -538,6 +550,7 @@ class MainWindow(QtWidgets.QMainWindow):
             fitWindow=fitWindow, fitWidth=fitWidth,
             zoomActions=zoomActions,
             openNextImg=openNextImg, openPrevImg=openPrevImg,
+            grabcut = grabcut,  ############################################################ Souayb 11.02
             fileMenuActions=(open_, opendir, save, saveAs, close, quit),
             tool=(),
             # XXX: need to add some actions here to activate the shortcut
@@ -556,6 +569,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # menu shown at right click
             menu=(
                 createMode,
+                grabcut, ############################# Souayb 11.02
                 createRectangleMode,
                 createCircleMode,
                 createLineMode,
@@ -661,6 +675,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.actions.tool = (
             open_,
             opendir,
+            grabcut, #################################### Souayb 11.02
             openNextImg,
             openPrevImg,
             save,
@@ -677,6 +692,7 @@ class MainWindow(QtWidgets.QMainWindow):
             zoomOut,
             fitWindow,
             fitWidth,
+           
         )
 
         self.statusBar().showMessage(self.tr('%s started.') % __appname__)
@@ -779,6 +795,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.menus.edit.clear()
         actions = (
             self.actions.createMode,
+            self.actions.grabcut, ################################################################### SOUAYB 11.02
             self.actions.createRectangleMode,
             self.actions.createCircleMode,
             self.actions.createLineMode,
@@ -813,6 +830,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.actions.createLineMode.setEnabled(True)
         self.actions.createPointMode.setEnabled(True)
         self.actions.createLineStripMode.setEnabled(True)
+        self.actions.grabcut.setEnabled(True)
         title = __appname__
         if self.filename is not None:
             title = '{} - {}'.format(title, self.filename)
@@ -895,6 +913,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.actions.createLineMode.setEnabled(True)
             self.actions.createPointMode.setEnabled(True)
             self.actions.createLineStripMode.setEnabled(True)
+            self.actions.grabcut.setEnabled(True)
         else:
             if createMode == 'polygon':
                 self.actions.createMode.setEnabled(False)
@@ -903,6 +922,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
                 self.actions.createLineStripMode.setEnabled(True)
+                self.actions.grabcut.setEnabled(True)
             elif createMode == 'rectangle':
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(False)
@@ -910,6 +930,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
                 self.actions.createLineStripMode.setEnabled(True)
+                self.actions.grabcut.setEnabled(True)
             elif createMode == 'line':
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(True)
@@ -917,6 +938,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createLineMode.setEnabled(False)
                 self.actions.createPointMode.setEnabled(True)
                 self.actions.createLineStripMode.setEnabled(True)
+                self.actions.grabcut.setEnabled(True)
             elif createMode == 'point':
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(True)
@@ -924,6 +946,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(False)
                 self.actions.createLineStripMode.setEnabled(True)
+                self.actions.grabcut.setEnabled(True)
             elif createMode == "circle":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(True)
@@ -931,6 +954,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
                 self.actions.createLineStripMode.setEnabled(True)
+                self.actions.grabcut.setEnabled(True)
             elif createMode == "linestrip":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(True)
@@ -938,6 +962,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
                 self.actions.createLineStripMode.setEnabled(False)
+                self.actions.grabcut.setEnabled(True)
+            elif createMode == 'grab':
+                self.actions.createMode.setEnabled(True)
+                self.actions.createRectangleMode.setEnabled(False)
+                self.actions.createCircleMode.setEnabled(True)
+                self.actions.createLineMode.setEnabled(True)
+                self.actions.createPointMode.setEnabled(True)
+                self.actions.createLineStripMode.setEnabled(True)
+                self.actions.grabcut.setEnabled(False)
             else:
                 raise ValueError('Unsupported createMode: %s' % createMode)
         self.actions.editMode.setEnabled(not edit)
@@ -1651,13 +1684,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.labelFile.imagePath,
             )
             self.otherData = self.labelFile.otherData
+            print('self.imagepath', self.imagePath)
         else:
             self.imageData = LabelFile.load_image_file(filename)
             if self.imageData:
                 self.imagePath = filename
             self.labelFile = None
         image = QtGui.QImage.fromData(self.imageData)
-
         if image.isNull():
             formats = ['*.{}'.format(fmt.data().decode())
                        for fmt in QtGui.QImageReader.supportedImageFormats()]

@@ -1,7 +1,10 @@
+from turtle import shape
+from PIL  import Image, ImageStat
+import cv2
 from qtpy import QtCore
 from qtpy import QtGui
 from qtpy import QtWidgets
-
+import numpy as np 
 #from labelme import QT5
 import os, sys
 currentdir = os.path.dirname(os.path.realpath(__file__))
@@ -40,7 +43,7 @@ class Canvas(QtWidgets.QWidget):
 
     CREATE, EDIT = 0, 1
 
-    # polygon, rectangle, line, or point
+    # polygon, rectangle, line,  point or grab
     _createMode = 'polygon'
 
     _fill_drawing = False
@@ -66,6 +69,7 @@ class Canvas(QtWidgets.QWidget):
         #   - createMode == 'rectangle': diagonal line of the rectangle
         #   - createMode == 'line': the line
         #   - createMode == 'point': the point
+        #   - createMode == 'grab': foue points
         self.line = Shape()
         self.prevPoint = QtCore.QPoint()
         self.prevMovePoint = QtCore.QPoint()
@@ -105,7 +109,7 @@ class Canvas(QtWidgets.QWidget):
     @createMode.setter
     def createMode(self, value):
         if value not in ['polygon', 'rectangle', 'circle',
-           'line', 'point', 'linestrip']:
+           'line', 'point', 'linestrip', 'grab']:
             raise ValueError('Unsupported createMode: %s' % value)
         self._createMode = value
 
@@ -170,7 +174,19 @@ class Canvas(QtWidgets.QWidget):
 
     def selectedVertex(self):
         return self.hVertex is not None
+    def QPixmapToArray(self, pixmap):
+        ## Get the size of the current pixmap
+        size = pixmap.size()
+        h = size.width()
+        w = size.height()
+        channels_count = 4
+        qimg = pixmap.toImage()
+        byte_str = qimg.bits().asstring(w*h*channels_count)
 
+        ## Using the np.frombuffer function to convert the byte string into an np array
+        img = np.fromstring(byte_str, dtype=np.uint8).reshape((w,h,channels_count))
+
+        return img[:,:,:3]
     def mouseMoveEvent(self, ev):
         """Update line with last point and current coordinates."""
         try:
@@ -218,6 +234,11 @@ class Canvas(QtWidgets.QWidget):
             elif self.createMode == 'point':
                 self.line.points = [self.current[0]]
                 self.line.close()
+
+            elif self.createMode == 'grab':
+                self.line.points = [self.current[0], pos]
+                self.line.close()
+
             self.repaint()
             self.current.highlightClear()
             return
@@ -312,7 +333,104 @@ class Canvas(QtWidgets.QWidget):
         self.hEdge = None
         self.movingShape = True  # Save changes
 
+    def getRectFromLine(self, pt1, pt2):
+        x1, y1 = pt1.x(), pt1.y()
+        x2, y2 = pt2.x(), pt2.y()
+        return QtCore.QRectF(x1, y1, x2 - x1, y2 - y1)
+
+    
+    def is_grayscale(self, arr):
+        im = Image.fromarray(arr)
+        stat = ImageStat.Stat(im)
+
+        if sum(stat.sum)/3 == stat.sum[0]:
+            return True
+        else:
+            return False
+
+    def grab_cat_mask(self, image,
+                    rect:list=None,
+                    plot_contour:bool=True,
+                    apply_blur:bool=True):
+        """
+        Input:
+            image: type= numpy array
+            rect:(default=None) the focus box for grabcut if None the entire image is used
+            plot_contour: This allow to plot the contours on the input image
+            apply_blur:(default=True) blur the image to remove small rectangle
+        Ouptut:
+            contour:(type:list) of all the contours
+            painted:(type:image in nd.array) results with the countour plot on the image
+        """
+        assert isinstance(image, np.ndarray), F"image must be a numpy array, but received: {type(image)}"
+
+        image_copy = image.copy()
+        if self.is_grayscale(image):
+
+            if rect:
+                print(rect)
+                thresh = np.zeros(image.shape[:2],np.uint8)
+                x, y, w, h = rect
+
+                crop = image[y:y+h, x:x+w]
+
+                try:
+                    crop = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+                except Exception as e:
+                    raise ValueError("PLease very that the rectangle coordinate is correct")
+
+                if apply_blur:
+                        crop =  cv2.GaussianBlur(crop, (3, 3), 0)
+                ret, threshold = cv2.threshold(crop, 0, 255, cv2.THRESH_BINARY+ cv2.THRESH_OTSU)
+
+                thresh[y:y+h, x:x+w] = threshold
+            else:
+                img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                if apply_blur:
+                        img_gray =  cv2.GaussianBlur(img_gray, (3, 3), 0)
+                ret, thresh = cv2.threshold(img_gray, 0, 255, cv2.THRESH_BINARY+ cv2.THRESH_OTSU)
+
+        else:
+            height, width  = image.shape[:2]
+            mask = np.zeros((height , width),np.uint8)
+            bgdModel = np.zeros((1,65),np.float64)
+            fgdModel = np.zeros((1,65),np.float64)
+
+            left_margin_proportion = 0.01
+            right_margin_proportion = 0.01
+            up_margin_proportion = 0.01
+            down_margin_proportion = 0.01
+
+            if not rect:
+                rect = (
+                    int(width * left_margin_proportion),
+                    int(height * up_margin_proportion),
+                    int(width * (1 - right_margin_proportion)),
+                    int(height * (1 - down_margin_proportion)),
+                )
+
+            try:
+                cv2.grabCut(image,mask,rect,bgdModel,fgdModel,5,cv2.GC_INIT_WITH_RECT)
+            except Exception as e:
+                print("Oops!", e.__class__, "occurred.: PLease verify the rectangle coordinate")
+
+            mask2 = np.where((mask==2)|(mask==0),0,1).astype('uint8')
+            image = image*mask2[:,:,np.newaxis]
+            img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            img_gray = cv2.GaussianBlur(img_gray, (3, 3), 0)
+            ret, thresh = cv2.threshold(img_gray, 0, 255, cv2.THRESH_BINARY+ cv2.THRESH_TRIANGLE)
+
+
+        edged = cv2.Canny(thresh, 30, 200)
+        contours, hierarchy = cv2.findContours(edged, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        if plot_contour:
+            cv2.drawContours(image_copy, contours, -1, (0, 255, 0), 1, cv2.LINE_AA)
+
+            return contours,  image_copy
+        return contours, hierarchy
+
     def mousePressEvent(self, ev):
+        print("in the mouse pressEvent")
         if QT5:
             pos = self.transformPos(ev.localPos())
         else:
@@ -321,15 +439,75 @@ class Canvas(QtWidgets.QWidget):
             if self.drawing():
                 if self.current:
                     # Add point to existing shape.
+                    # if self.createMode == 'polygon':
+                    #     self.current.addPoint(self.line[1])
+                    #     print('now adding points', self.current.points) #######¨˚˚
+                    #     if len(self.current.points) == 4 :
+                    #         assert self.current
+                    #         self.current.close()
+                    #         self.shapes.append(self.current)
+                    #         self.storeShapes()
+                    #         self.current = None
+                    #         self.setHiding(False)
+                    #         self.newShape.emit()
+                    #         # self.update()
+
+                    #         # self.current.points.clear()
+                            
+                    #     # if self.current.isClosed():
+                    #     #     self.finalise()
                     if self.createMode == 'polygon':
                         self.current.addPoint(self.line[1])
                         self.line[0] = self.current[-1]
                         if self.current.isClosed():
-                            self.finalise()
+                            # self.finalise()
+                            print('Canvas 475', self.current.points)
+                            print('Canvas 475', self.line[0])
+                            assert self.current
+                            self.current.close()
+                            self.shapes.append(self.current)
+                            self.storeShapes()
+                            self.current = None
+                            self.setHiding(False)
+                            self.newShape.emit()
+                            self.update()
                     elif self.createMode in ['rectangle', 'circle', 'line']:
                         assert len(self.current.points) == 1
                         self.current.points = self.line.points
                         self.finalise()
+                    elif self.createMode == 'grab':
+                        assert len(self.current.points) == 1
+                        self.current.points = self.line.points
+                        result = self.QPixmapToArray(self.pixmap)
+                        print("result", self.current.points)
+                        rectangle = self.getRectFromLine(*self.current.points)
+                        x,y,w,h= [round(numb) for numb in rectangle.getRect()]
+                        crope = result[y:y+h, x:x+w].copy()
+                        rect_coord = [x,y,w,h]
+                        # print("rect", rect_coord)
+                        contour, hier= self.grab_cat_mask(result, rect=rect_coord, apply_blur=True,plot_contour=False)
+                        area_thresh = 0
+                        big_contour = contour
+                        if contour:
+                            for c in contour:
+                                area = cv2.contourArea(c)
+                                if area > area_thresh:
+                                    area_thresh = area
+                                    big_contour = c
+                        qpoly =  [QtCore.QPointF(p[0], p[1]) for p in big_contour.reshape(-1,2)]
+                        self.current.points = qpoly
+                        
+                        assert self.current
+                        self.current.close()
+                        self.shapes.append(self.current)
+                        self.storeShapes()
+                        self.current = None
+                        self.setHiding(False)
+                        self.newShape.emit()
+                        self.update()
+                        # cv2.imshow("out", crope)
+                        # cv2.imshow("output", painted)
+                        # cv2.waitKey(0)
                     elif self.createMode == 'linestrip':
                         self.current.addPoint(self.line[1])
                         self.line[0] = self.current[-1]
@@ -578,6 +756,16 @@ class Canvas(QtWidgets.QWidget):
         self.newShape.emit()
         self.update()
 
+    def finalise_grab(self):
+        assert self.current
+        self.current.close()
+        self.shapes.append(self.current)
+        self.storeShapes()
+        self.current = None
+        self.setHiding(False)
+        self.newShape.emit()
+        self.update()
+
     def closeEnough(self, p1, p2):
         # d = distance(p1 - p2)
         # m = (p1-p2).manhattanLength()
@@ -702,7 +890,8 @@ class Canvas(QtWidgets.QWidget):
         self.current.setOpen()
         if self.createMode in ['polygon', 'linestrip']:
             self.line.points = [self.current[-1], self.current[0]]
-        elif self.createMode in ['rectangle', 'line', 'circle']:
+        elif self.createMode in ['rectangle', 'line', 'circle', 'grab']:
+            print("undolast")
             self.current.points = self.current.points[0:1]
         elif self.createMode == 'point':
             self.current = None
@@ -725,6 +914,8 @@ class Canvas(QtWidgets.QWidget):
         self.repaint()
 
     def loadShapes(self, shapes, replace=True):
+        for testest in shapes[0]:
+            print("loadShape Conva 906", testest)
         if replace:
             self.shapes = list(shapes)
         else:

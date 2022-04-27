@@ -1,3 +1,4 @@
+from IPython.core.debugger import set_trace 
 import copy
 import math
 
@@ -84,7 +85,7 @@ class Shape(object):
         if value is None:
             value = 'polygon'
         if value not in ['polygon', 'rectangle', 'point',
-           'line', 'circle', 'linestrip']:
+           'line', 'circle', 'linestrip', 'grab']:
             raise ValueError('Unexpected shape_type: {}'.format(value))
         self._shape_type = value
 
@@ -134,6 +135,23 @@ class Shape(object):
             line_path = QtGui.QPainterPath()
             vrtx_path = QtGui.QPainterPath()
 
+            if self.shape_type == 'grab':
+                line_path.moveTo(self.points[0])
+                # Uncommenting the following line will draw 2 paths
+                # for the 1st vertex, and make it non-filled, which
+                # may be desirable.
+                # self.drawVertex(vrtx_path, 0)
+                for i, p in enumerate(self.points):
+                    line_path.lineTo(p)
+                    self.drawVertex(vrtx_path, i)
+                if self.isClosed():
+                    line_path.lineTo(self.points[0])
+                # assert len(self.points) in [1, 2]
+                # if len(self.points) == 2:
+                #     rectangle = self.getRectFromLine(*self.points)
+                #     line_path.addRect(rectangle)
+                # for i in range(len(self.points)):
+                #     self.drawVertex(vrtx_path, i)
             if self.shape_type == 'rectangle':
                 assert len(self.points) in [1, 2]
                 if len(self.points) == 2:
@@ -159,13 +177,11 @@ class Shape(object):
                 # for the 1st vertex, and make it non-filled, which
                 # may be desirable.
                 # self.drawVertex(vrtx_path, 0)
-
                 for i, p in enumerate(self.points):
                     line_path.lineTo(p)
                     self.drawVertex(vrtx_path, i)
                 if self.isClosed():
                     line_path.lineTo(self.points[0])
-
             painter.drawPath(line_path)
             painter.drawPath(vrtx_path)
             painter.fillPath(vrtx_path, self._vertex_fill_color)
