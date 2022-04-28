@@ -108,6 +108,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Whether we need to save or not.
         self.dirty = False
 
+        # whether to show popup menu 
+        self.show_popup = True
+
         self._noSelectionSlot = False
 
         # Main widgets and related state.
@@ -914,6 +917,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.actions.createPointMode.setEnabled(True)
             self.actions.createLineStripMode.setEnabled(True)
             self.actions.grabcut.setEnabled(True)
+            self.show_popup = True
         else:
             if createMode == 'polygon':
                 self.actions.createMode.setEnabled(False)
@@ -923,6 +927,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createPointMode.setEnabled(True)
                 self.actions.createLineStripMode.setEnabled(True)
                 self.actions.grabcut.setEnabled(True)
+                self.show_popup = True
             elif createMode == 'rectangle':
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(False)
@@ -931,6 +936,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createPointMode.setEnabled(True)
                 self.actions.createLineStripMode.setEnabled(True)
                 self.actions.grabcut.setEnabled(True)
+                self.show_popup = True
             elif createMode == 'line':
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(True)
@@ -939,6 +945,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createPointMode.setEnabled(True)
                 self.actions.createLineStripMode.setEnabled(True)
                 self.actions.grabcut.setEnabled(True)
+                self.show_popup = True
             elif createMode == 'point':
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(True)
@@ -947,6 +954,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createPointMode.setEnabled(False)
                 self.actions.createLineStripMode.setEnabled(True)
                 self.actions.grabcut.setEnabled(True)
+                self.show_popup = True
             elif createMode == "circle":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(True)
@@ -955,6 +963,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createPointMode.setEnabled(True)
                 self.actions.createLineStripMode.setEnabled(True)
                 self.actions.grabcut.setEnabled(True)
+                self.show_popup = True
             elif createMode == "linestrip":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(True)
@@ -963,6 +972,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createPointMode.setEnabled(True)
                 self.actions.createLineStripMode.setEnabled(False)
                 self.actions.grabcut.setEnabled(True)
+                self.show_popup = True
             elif createMode == 'grab':
                 self.actions.createMode.setEnabled(True)
                 self.actions.createRectangleMode.setEnabled(False)
@@ -971,6 +981,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.actions.createPointMode.setEnabled(True)
                 self.actions.createLineStripMode.setEnabled(True)
                 self.actions.grabcut.setEnabled(False)
+                self.show_popup = False
             else:
                 raise ValueError('Unsupported createMode: %s' % createMode)
         self.actions.editMode.setEnabled(not edit)
@@ -1480,8 +1491,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def newShape(self):
         # Get hierarchy levels
+        # print("New Shape")
         points=self.canvas.getLastLabel()
         polygons,poly_labels,poly_ids = self.labelList.getPolygons()
+        # sh = self.canvas.current.label
+        # print('SHAPE',self.canvas.current.label, self.canvas.current.group_id )
+        # print(f"polygone { len(polygons)} poly_labels { poly_labels}--polyg_ids {poly_ids}")
         levels = []
         for idx,poly in enumerate(polygons):
             #contained = False
@@ -1507,6 +1522,7 @@ class MainWindow(QtWidgets.QMainWindow):
         position MUST be in global coordinates.
         """
         items = self.uniqLabelList.selectedItems()
+        print("unique", items)
         text = None
         if items:
             text = items[0].data(Qt.UserRole)
@@ -1517,41 +1533,73 @@ class MainWindow(QtWidgets.QMainWindow):
         person = None
         orient = None
         phrase = None
-        if self._config['display_label_popup'] or not text:
-            previous_text = self.labelDialog.edit.text()
-            text, flags, group_id, context, state, person, orient, phrase, levels = self.labelDialog.popUp(text)
-            if not text:
-                self.labelDialog.edit.setText(previous_text)
+        if self.show_popup:
+            # pass
+            if self._config['display_label_popup'] or not text:
+                previous_text = self.labelDialog.edit.text()
+                text, flags, group_id, context, state, person, orient, phrase, levels = self.labelDialog.popUp(text)
+                if not text:
+                    self.labelDialog.edit.setText(previous_text)
 
-        if text and not self.validateLabel(text):
-            self.errorMessage(
-                self.tr('Invalid label'),
-                self.tr(
-                    "Invalid label '{}' with validation type '{}'"
-                ).format(text, self._config['validate_label'])
-            )
-            text = ''
+            if text and not self.validateLabel(text):
+                self.errorMessage(
+                    self.tr('Invalid label'),
+                    self.tr(
+                        "Invalid label '{}' with validation type '{}'"
+                    ).format(text, self._config['validate_label'])
+                )
+                text = ''
 
-        if text:
-            self.labelList.clearSelection()
-            shape = self.canvas.setLastLabel(text, flags)
-            shape.group_id = group_id
-            shape.context = context
-            shape.state   = state
-            shape.person  = person
-            shape.orient  = orient
-            shape.phrase  = phrase
-            shape.parent  = levels
+            if text:
+                self.labelList.clearSelection()
+                shape = self.canvas.setLastLabel(text, flags)
+                shape.group_id = group_id
+                shape.context = context
+                shape.state   = state
+                shape.person  = person
+                shape.orient  = orient
+                shape.phrase  = phrase
+                shape.parent  = levels
 
-            self.addLabel(shape)
-            self.actions.editMode.setEnabled(True)
-            self.actions.undoLastPoint.setEnabled(False)
-            self.actions.undo.setEnabled(True)
-            self.setDirty()
+                self.addLabel(shape)
+                self.actions.editMode.setEnabled(True)
+                self.actions.undoLastPoint.setEnabled(False)
+                self.actions.undo.setEnabled(True)
+                self.setDirty()
 
-        else:
-            self.canvas.undoLastLine()
-            self.canvas.shapesBackups.pop()
+            else:
+                self.canvas.undoLastLine()
+                self.canvas.shapesBackups.pop()
+        else : # when the grabcut is used 
+            text = self.canvas.current.label
+            if text and not self.validateLabel(text):
+                self.errorMessage(
+                    self.tr('Invalid label'),
+                    self.tr(
+                        "Invalid label '{}' with validation type '{}'"
+                    ).format(text, self._config['validate_label'])
+                )
+                text = ''
+
+            if text:
+                self.labelList.clearSelection()
+                shape = self.canvas.setLastLabel(text, flags)
+                shape.group_id = self.canvas.current.group_id
+                shape.context = self.canvas.current.context
+                shape.state   = self.canvas.current.state
+                shape.person  = self.canvas.current.person
+                shape.orient  = self.canvas.current.orient
+                shape.phrase  = self.canvas.current.phrase
+                shape.parent  = 'parent'
+                self.addLabel(shape)
+                self.actions.editMode.setEnabled(True)
+                self.actions.undoLastPoint.setEnabled(False)
+                self.actions.undo.setEnabled(True)
+                self.setDirty()
+
+            else:
+                self.canvas.undoLastLine()
+                self.canvas.shapesBackups.pop()
 
     # Ray tracing to match polygons
     def ray_tracing_method(self,x,y,poly):

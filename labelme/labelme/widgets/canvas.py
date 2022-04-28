@@ -1,4 +1,5 @@
 from turtle import shape
+from itertools import count ##################### 
 from PIL  import Image, ImageStat
 import cv2
 from qtpy import QtCore
@@ -476,7 +477,7 @@ class Canvas(QtWidgets.QWidget):
                         self.current.points = self.line.points
                         self.finalise()
                     elif self.createMode == 'grab':
-                        assert len(self.current.points) == 1
+                        # assert len(self.current.points) == 1
                         self.current.points = self.line.points
                         result = self.QPixmapToArray(self.pixmap)
                         print("result", self.current.points)
@@ -488,26 +489,43 @@ class Canvas(QtWidgets.QWidget):
                         contour, hier= self.grab_cat_mask(result, rect=rect_coord, apply_blur=True,plot_contour=False)
                         area_thresh = 0
                         big_contour = contour
+                        print("number of contour", len(contour))
                         if contour:
+                            poly_countert = count(0)
                             for c in contour:
-                                area = cv2.contourArea(c)
-                                if area > area_thresh:
-                                    area_thresh = area
-                                    big_contour = c
-                        qpoly =  [QtCore.QPointF(p[0], p[1]) for p in big_contour.reshape(-1,2)]
-                        self.current.points = qpoly
-                        
-                        assert self.current
-                        self.current.close()
-                        self.shapes.append(self.current)
-                        self.storeShapes()
-                        self.current = None
-                        self.setHiding(False)
-                        self.newShape.emit()
-                        self.update()
-                        # cv2.imshow("out", crope)
-                        # cv2.imshow("output", painted)
-                        # cv2.waitKey(0)
+                                ct = next(poly_countert)
+                                self.current = Shape(shape_type='polygon')
+                                # area = cv2.contourArea(c)
+                                # if area > area_thresh:
+                                #     area_thresh = area
+                                #     big_contour = c
+                                qpoly =  [QtCore.QPointF(p[0], p[1]) for p in c.reshape(-1,2)]
+                                self.current.points = qpoly
+                                self.current.label = 'nose_3'
+                                self.current.group_id = ct
+                                self.current.context = None
+                                self.current.state   = None
+                                self.current.person  = None
+                                self.current.orient  = None
+                                self.current.phrase  = None
+                                assert self.current
+                                self.current.close()
+                                self.shapes.append(self.current)
+                                self.storeShapes()
+                                # self.current = None
+                                self.setHiding(False)
+                                self.newShape.emit()
+                                self.update()
+                        # self.shapes.append(self.current)
+                        # self.storeShapes()
+                        # self.current = None
+                        # self.setHiding(False)
+                        # self.newShape.emit()
+                        # self.update()
+                        if contour:
+                            cv2.imwrite("out.png", crope)
+                            # cv2.imshow("output", result)
+                            # cv2.waitKey(0)
                     elif self.createMode == 'linestrip':
                         self.current.addPoint(self.line[1])
                         self.line[0] = self.current[-1]

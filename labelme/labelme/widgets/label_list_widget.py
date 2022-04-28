@@ -14,7 +14,7 @@ class HTMLDelegate(QtWidgets.QStyledItemDelegate):
 
     def paint(self, painter, option, index):
         painter.save()
-        print('paining')
+        # print('paining')
         options = QtWidgets.QStyleOptionViewItem(option)
 
         self.initStyleOption(options, index)
@@ -189,11 +189,12 @@ class LabelListWidget(QtWidgets.QListView):
         shapes = []
         labels = []
         groupids=[]
+        print('Getting the polygone')
         for row in range(self.model().rowCount()):
             item = self.model().item(row, 0)
             # Get polygon from shape
             poly = [[p.x(),p.y()] for p in item.shape().points]
-
+            
             labels.append(item.shape().label)
             shapes.append(poly)
             groupids.append(item.shape().group_id)
