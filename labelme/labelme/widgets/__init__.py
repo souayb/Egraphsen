@@ -3,10 +3,9 @@
 from .canvas import Canvas
 
 from .color_dialog import ColorDialog
-
+from .grab_pop import LabelGrab
 from .label_dialog import LabelDialog
 from .label_dialog import LabelQLineEdit
-
 from .label_list_widget import LabelListWidget
 from .label_list_widget import LabelListWidgetItem
 

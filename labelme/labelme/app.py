@@ -28,6 +28,7 @@ from logger  import logger
 from shape   import Shape
 from widgets import Canvas
 from widgets import LabelDialog
+from widgets import LabelGrab
 from widgets import LabelListWidget
 from widgets import LabelListWidgetItem
 from widgets import ToolBar
@@ -115,6 +116,22 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Main widgets and related state.
         self.labelDialog = LabelDialog(
+            parent=self,
+            labels=self._config['labels'],
+            context=self._config['context'],
+            state=self._config['state'],
+            person=self._config['person'],
+            orient=self._config['orient'],
+            phrase=self._config['phrase'],
+            sort_labels=self._config['sort_labels'],
+            show_text_field=self._config['show_label_text_field'],
+            completion=self._config['label_completion'],
+            fit_to_content=self._config['fit_to_content'],
+            flags=self._config['label_flags']
+        )
+
+          # Main widgets and related state.
+        self.grab_pop =  LabelGrab(
             parent=self,
             labels=self._config['labels'],
             context=self._config['context'],
@@ -229,6 +246,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas = self.labelList.canvas = Canvas(
             epsilon=self._config['epsilon'],
             double_click=self._config['canvas']['double_click'],
+            config_data= self._config
         )
         self.canvas.zoomRequest.connect(self.zoomRequest)
 
@@ -526,6 +544,18 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         fill_drawing.trigger()
 
+        fill_grab_drawing = action(
+            self.tr('Fill Drawing grab'),
+            self.canvas.setFillDrawing,
+            None,
+            'color',
+            self.tr('Fill grab while drawing'),
+            checkable=True,
+            enabled=True,
+        )
+        fill_grab_drawing.trigger()
+
+
         # Lavel list context menu. TODO?
         labelMenu = QtWidgets.QMenu()
         utils.addActions(labelMenu, (edit, delete))
@@ -647,6 +677,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.phrase_dock.toggleViewAction(),
                 None,
                 fill_drawing,
+                fill_grab_drawing,
                 None,
                 hideAll,
                 showAll,
@@ -1493,6 +1524,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Get hierarchy levels
         # print("New Shape")
         points=self.canvas.getLastLabel()
+
         polygons,poly_labels,poly_ids = self.labelList.getPolygons()
         # sh = self.canvas.current.label
         # print('SHAPE',self.canvas.current.label, self.canvas.current.group_id )
@@ -1570,8 +1602,9 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.canvas.undoLastLine()
                 self.canvas.shapesBackups.pop()
-        else : # when the grabcut is used 
+        else : # when the grabcut is used grapPop
             text = self.canvas.current.label
+            # text = self.grab_pop.popUp()
             if text and not self.validateLabel(text):
                 self.errorMessage(
                     self.tr('Invalid label'),
@@ -1590,7 +1623,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 shape.person  = self.canvas.current.person
                 shape.orient  = self.canvas.current.orient
                 shape.phrase  = self.canvas.current.phrase
-                shape.parent  = 'parent'
+                shape.parent  = self.canvas.current.parent
                 self.addLabel(shape)
                 self.actions.editMode.setEnabled(True)
                 self.actions.undoLastPoint.setEnabled(False)

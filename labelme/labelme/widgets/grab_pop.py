@@ -59,7 +59,7 @@ class LabelQLineEdit(QtWidgets.QLineEdit):
         self.group_ids = id_dic
 
 
-class LabelDialog(QtWidgets.QDialog):
+class LabelGrab(QtWidgets.QDialog):
 
     def __init__(self, text="Enter object label", parent=None, labels=None,
                  context=None, sort_labels=True, show_text_field=True,
@@ -82,7 +82,7 @@ class LabelDialog(QtWidgets.QDialog):
         # Automatic group id
         self.group_ids = {}
 
-        super(LabelDialog, self).__init__(parent)
+        super(LabelGrab, self).__init__(parent)
         self.edit = LabelQLineEdit()
         self.edit.setPlaceholderText(text)
         self.edit.setValidator(utils.labelValidator())
@@ -274,7 +274,19 @@ class LabelDialog(QtWidgets.QDialog):
         layout.addWidget(self.levelList)
 
         # Moved Buttons
-        layout.addWidget(bb)
+        layout.addWidget(bb,2)
+
+        ################ CHOOSING IF TO USE GRAB CUT OR DETECTION MODELS #######
+
+        self.ch_grab = QtWidgets.QRadioButton('Use grabcut')
+        self.ch_grab.setChecked(True)
+
+        self.ch_detector = QtWidgets.QRadioButton('Use Deep detector')
+        self.ch_detector.setChecked(False)
+        layout.addWidget(self.ch_grab, 0)
+        layout.addWidget(self.ch_detector, 1)
+
+
 
         # label_flags
         if flags is None:
@@ -624,7 +636,6 @@ class LabelDialog(QtWidgets.QDialog):
 
     # Sets the size of the label dialog widget
     def setWinSize(self,size):
-        print("Setting size to",size)
         height,width = size
         self.height = height-30
         self.width = width

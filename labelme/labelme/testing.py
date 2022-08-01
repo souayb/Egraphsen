@@ -9,8 +9,6 @@ import imgviz
 import utils
 
 
-
-
 def assert_labelfile_sanity(filename):
     assert osp.exists(filename)
 

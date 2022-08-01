@@ -185,7 +185,7 @@ def main():
             with codecs.open(args.state, 'r', encoding='utf-8') as f:
                 args.state = [l.strip() for l in f if l.strip()]
         else:
-            print("Loading state from list")
+            print("Loading state from list")    
             args.state = [l for l in args.state.split(',') if l]
 
     if hasattr(args, 'person'):

@@ -61,3 +61,5 @@ bracelet
 band
 mirror
 human
+nose_3
+fig
