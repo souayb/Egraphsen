@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import QMessageBox
 from .grab_pop import  LabelGrab
 import black
 from matplotlib.pyplot import box ##################### 
-from detection.detect import detect_bbox #################################################
+# from detection.detect import detect_bbox #################################################
 from PIL  import Image, ImageStat
 import cv2
 from qtpy import QtCore
@@ -60,6 +60,10 @@ class Canvas(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
         self.epsilon = kwargs.pop('epsilon', 10.0)
         self.double_click = kwargs.pop('double_click', 'close')
+        self.full_args = kwargs.pop('full_args', 10.0)
+
+        print("WHAT ARE THESE")
+        print(self.full_args)
         if self.double_click not in [None, 'close']:
             raise ValueError(
                 'Unexpected value for double_click event: {}'
@@ -105,6 +109,12 @@ class Canvas(QtWidgets.QWidget):
         # Set widget options.
         self.setMouseTracking(True)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
+        self.yolo = None
+        self.current_gid = None
+
+        # Update
+        self.MIN_POINT_DISTANCE = 0.01 ### bei dist<(max_dist*self.MIN_POINT_DISTANCE)**1.5)
+        self.MAX_POINT_DISTANCE = 0.03#80. # Euklidische distanz in pixeln
 
         ###################### adding the 
           # Main widgets and related state.
@@ -510,6 +520,18 @@ class Canvas(QtWidgets.QWidget):
         else: 
             self._show_dialog()
 
+    """"Return a list of nb_points equally spaced points
+        between p1 and p2"""
+    def intermediates(self,p1, p2, nb_points=8):     
+        # If we have 8 intermediate points, we have 8+1=9 spaces
+        # between p1 and p2
+        x_spacing = (p2[0] - p1[0]) / (nb_points + 1)
+        y_spacing = (p2[1] - p1[1]) / (nb_points + 1)
+
+        return [[p1[0] + i * x_spacing, p1[1] +  i * y_spacing] 
+                for i in range(1, nb_points+1)]
+
+
     def mousePressEvent(self, ev):
         if QT5:
             pos = self.transformPos(ev.localPos())
@@ -531,23 +553,34 @@ class Canvas(QtWidgets.QWidget):
                         self.finalise()
 
                     elif self.createMode == 'grab':
+                        stop_polygon = False
+                        print("Current poinnt 0",self.line[0])
+                        print("Current poinnt 1",self.line[1])
 
-                        self.current.addPoint(self.line[1])
-                        self.line[0] = self.current[-1]
-                        if len(self.current.points) == 4:
+                        if len(self.current.points)>=2 and self.line[1] == self.current.points[0]:
+                            stop_polygon = True
+                        else:
+                            self.current.addPoint(self.line[1])
+                            self.line[0] = self.current[-1]
+
+                        if stop_polygon:#len(self.current.points) == 5:
+                            #print("Done:")
+                            #for pp in self.current.points:
+                            #    print(pp)
                             self.current.isClosed()
                             pts = [[int(sp.x()), int(sp.y())] for sp in self.current.points]
                             # text, flags, group_id, context, state, person, orient, phrase, levels = self.labepop.popUp()
                             text, flags, group_id, context, state, person, orient, phrase, levels = self._show_dialog()
 
-                            if self.labepop.ch_grab.isChecked(): # Apply grabe cut 
 
-                                rect = cv2.boundingRect(np.array(pts))
-                                result = self.QPixmapToArray(self.pixmap)
+                            rect = cv2.boundingRect(np.array(pts))
+
+                            result = self.QPixmapToArray(self.pixmap)
+                            x,y,w,h= rect
+
+                            if self.labepop.ch_grab.isChecked(): # Apply grabe cut 
                                 
-                                x,y,w,h= rect
-                                
-                                contour, hier= self.grab_cat_mask( result, rect=rect, apply_blur=True, use_sobel=False, kernel_size=1)
+                                contour, hier= self.grab_cat_mask(result, rect=rect, apply_blur=True, use_sobel=False, kernel_size=1)
                                 area_thresh = 0
                                 second_thres = 0 
                                 big_contour = contour
@@ -558,22 +591,32 @@ class Canvas(QtWidgets.QWidget):
                                     big_contour_num = np.argmax(np.array(areas))
                                     big_contour = contour[big_contour_num]
                                     areas[big_contour_num] = 0 
-                                    # if len(areas) > 1:
-                                    #     big_contour_num = np.argmax(np.array(areas))
-                                    #     big_contour = contour[big_contour_num]
-                                    # # poly_countert = count(0)
-                                    # # for c in contour:
-                                    # #     ct = next(poly_countert)
-                                        
-                                    # #     area = cv2.contourArea(c)
-                                    # #     if area > area_thresh:
-                                    # #         second_thres = area_thresh
-                                    # #         area_thresh = area
-                                    # #         big_contour = c
 
-                                    qpoly =  [QtCore.QPointF(p[0], p[1]) for p in big_contour.reshape(-1,2)]
+                                    found_points = (big_contour.reshape(-1,2))
+
+                                    max_dist = np.sqrt(np.sum((np.max(found_points,0)-np.min(found_points,0))**2))
+                                    print("This is the max distance:",max_dist)
+
+                                    # Reduce number of points in polygon
+                                    new_points = [] 
+                                    cur_p = 0
+                                    cur_points = [found_points[0]]
+
+                                    for pidx in range(1,len(found_points)):
+                                        if np.sqrt(np.sum((np.mean(cur_points,0).astype(int)-found_points[pidx])**2,-1))>(max_dist*self.MIN_POINT_DISTANCE)**1.5:#:0.01
+                                            new_points.append(np.mean(cur_points,0))
+                                            cur_points = [found_points[pidx]]
+                                            cur_p = pidx
+                                            
+                                        else:
+                                            cur_points.append(found_points[pidx])
+                                    new_points = np.array(new_points).astype(int)
+
+                                    qpoly =  [QtCore.QPointF(p[0], p[1]) for p in new_points]
                                     if qpoly[0] != qpoly[-1]: #flags, group_id, context, state, person, orient, phrase, levels
                                         qpoly.append(qpoly[0])
+
+                                    
                                     self.current.points = qpoly
                                     self.current.label = text
                                     self.current.group_id = group_id
@@ -602,44 +645,92 @@ class Canvas(QtWidgets.QWidget):
 
                             else :  # USE detection models 
                                 crope = result[y:y+h, x:x+w]
-                            
-                                crop = result[y:y+h, x:w+x]
-                                rect_coord = [x, y, x+w, y+h]
-                                    
-                                    ####################  APPLYING THE SEGMENTATION MODELS ############################
-                                print("before grab cut ", rect_coord)
-                                white_bg , black_gb = self.get_wbg_image(result, coord= rect_coord)
-                                try :
-                                    cv2.imshow('output.png', crope)
-                                except cv2.error as e : 
-                                    print("normal rectange")
-                                    crope = result[y:y+h, x:x+w]
-                                    cv2.imshow('output.png', crope)
-                                    cv2.imwrite("for_detect.png", black_gb)
-                                    # box_results = detect_bbox('/Users/souaybGA_1/Downloads/Desktop/egraphsen-tool-local/for_detect.png')
-                                    
-                                    if box_results:
-                                        for c in box_results:
-                                            self.current = Shape(shape_type='polygon')
-                                            qpoly =  [QtCore.QPointF(p[0], p[1]) for p in c[1]]
-                                            self.current.points = qpoly
-                                            self.current.label = c[0] # lable 
-                                            self.current.group_id = c[2]
-                                            self.current.context = None
-                                            self.current.state   = None
-                                            self.current.person  = None
-                                            self.current.orient  = None
-                                            self.current.phrase  = None
-                                            self.current.parent  = c[-1]
+                                print("Original Boxes")
+                                print(x,y,x+w,y+h)
+                                print("Original points")
+                                print(np.array(pts))
+                                det_poly,yolo,group_ids = detect_bbox(crope,
+                                                        pol_cut = np.array(pts),
+                                                        label = text,
+                                                        context = context, 
+                                                        state = state,
+                                                        group_id=group_id,
+                                                        group_ids = self.current_gid,
+                                                        model_path=self.full_args.model_path,
+                                                        anchors_path = self.full_args.anchors_path,
+                                                        saved_yolo = self.yolo,
+                                                        )
+                                self.current_gid = group_ids
 
-                                            assert self.current
-                                            self.current.close()
-                                            self.shapes.append(self.current)
-                                            self.storeShapes()
-                                            # self.current = None
-                                            self.setHiding(False)
-                                            self.newShape.emit()
-                                            self.update()
+                                print("hiuiuiijijj")
+                                for peepo in det_poly:
+                                    print(peepo)
+                                    print()
+                                
+                                #start_pol = [text, np.array(pts)]
+                                #det_poly.append(start_pol)
+
+
+                                if self.yolo is None:
+                                    self.yolo = yolo
+                                contour = det_poly
+                            
+                                area_thresh = 0
+                                big_contour = contour
+                                print("number of contour", len(contour))
+                                print(det_poly)
+                                if contour:
+                                    poly_countert = count(0)
+                                    for c in contour:
+
+                                        # Add intermediate points if distance between 2 points is too large
+                                        new_points = []
+                                        for pidx in range(1,len(c[1])):
+
+                                            cur_dist = np.sqrt(np.sum((c[1][pidx-1]-c[1][pidx])**2))
+
+                                            new_points.append(c[1][pidx-1])
+
+                                            if cur_dist > np.max(self.imageSize)*self.MAX_POINT_DISTANCE:
+                                                new_p = int(cur_dist/(np.max(self.imageSize)*self.MAX_POINT_DISTANCE))
+
+                                                inter_points = self.intermediates(list(c[1][pidx-1]), list(c[1][pidx]), nb_points=new_p)
+
+                                                for in_p in inter_points:
+                                                    new_points.append(in_p)
+
+                                        new_points.append(c[1][-1])
+
+                                        ct = next(poly_countert)
+                                        self.current = Shape(shape_type='polygon')
+                                        #area = cv2.contourArea(c)
+                                        #if area > area_thresh:
+                                        #    area_thresh = area
+                                        #    big_contour = c
+                                        if c[0] == text:
+                                            qpoly =  [QtCore.QPointF(p[0], p[1]) for p in new_points]
+                                        else:
+                                            qpoly =  [QtCore.QPointF(p[0]+x, p[1]+y) for p in new_points]
+                                        self.current.points = qpoly
+                                        self.current.label  = c[0]
+                                        self.current.group_id = c[-1]
+                                        self.current.parent = c[-2]
+
+                                        self.current.context = None
+                                        self.current.state   = None
+                                        self.current.person  = None
+                                        self.current.orient  = None
+                                        self.current.phrase  = None
+                                        assert self.current
+                                        self.current.close()
+                                        self.shapes.append(self.current)
+                                        self.storeShapes()
+                                        # self.current = None
+                                        self.setHiding(False)
+                                        self.newShape.emit()
+                                        self.update()
+
+                                self.current = None
                                 
                     elif self.createMode == 'linestrip':
                         self.current.addPoint(self.line[1])
